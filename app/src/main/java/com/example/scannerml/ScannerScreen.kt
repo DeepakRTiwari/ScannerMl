@@ -1,6 +1,5 @@
 package com.example.scannerml
 
-import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
@@ -14,7 +13,6 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.impl.utils.MatrixExt.postRotate
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
@@ -22,6 +20,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,14 +28,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -56,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
+import com.example.scannerml.ui.ImageSheet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -90,11 +90,11 @@ fun ScannerContent(modifier: Modifier = Modifier) {
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var imageBitMap by remember { mutableStateOf<Bitmap?>(null) }
-    val savedBitmap by remember { mutableStateOf(mutableListOf<Bitmap>()) }
+    var savedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isFlashOn by remember { mutableStateOf(false) }
-    var shouldShow by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
-
+    var shouldOpenSheet by remember { mutableStateOf(false) }
+    var imageList by remember { mutableStateOf<List<File>?>(null) }
 
     LaunchedEffect(key1 = cameraProviderFuture) {
         imageCapture = ImageCapture.Builder()
@@ -124,12 +124,12 @@ fun ScannerContent(modifier: Modifier = Modifier) {
 
                         opencvAnalyzer.setAnalyzer(executor, LightnessAnalyzer(context = context,
                             savedFileListener = {
-                                //we are getting file here o f captured image
+                                //we are getting file here of captured image
                             },
                             savedBitmap = {
-                                savedBitmap.add(it)
-                            }) { bitmap ->
-                            imageBitMap = bitmap
+                                savedBitmap = it
+                            }) { frame ->
+                            imageBitMap = frame
                         })
 
                         //----------------------
@@ -187,7 +187,6 @@ fun ScannerContent(modifier: Modifier = Modifier) {
                         }
                     }
                 }, modifier = Modifier.size(36.dp)) {
-
                     Image(
                         painter = painterResource(id = if (isFlashOn) R.drawable.flash else R.drawable.flash_off),
                         contentDescription = null,
@@ -198,7 +197,6 @@ fun ScannerContent(modifier: Modifier = Modifier) {
         }
 
         imageBitMap?.let { bitmap ->
-
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = null,
@@ -209,54 +207,49 @@ fun ScannerContent(modifier: Modifier = Modifier) {
             )
         }
 
-        AnimatedVisibility(
-            visible = shouldShow, enter = slideInHorizontally(),
-            exit = slideOutHorizontally(),
-            modifier = Modifier.align(Alignment.BottomStart)
-        ) {
-
-            Box(
-                contentAlignment = Alignment.Center
-            ) {
-
-                if (savedBitmap.size > 0) {
-                    Image(
-                        bitmap = savedBitmap[0].asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .sizeIn(minWidth = 150.dp, minHeight = 200.dp)
-                    )
+        if (savedBitmap != null) {
+            Image(
+                bitmap = savedBitmap!!.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+                    .clickable {
+                        imageList = fetchCacheFile(context)
+                        shouldOpenSheet = true
+                    }
+                    .sizeIn(minWidth = 150.dp, minHeight = 200.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Box(modifier = Modifier
+                .padding(16.dp)
+                .clickable {
+                    imageList = fetchCacheFile(context)
+                    shouldOpenSheet = true
                 }
-
-                if (savedBitmap.size > 1) {
-                    Image(
-                        bitmap = savedBitmap[1].asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .offset((-4).dp, 4.dp)
-                            .sizeIn(minWidth = 150.dp, minHeight = 200.dp)
-                    )
-                }
-            }
+                .sizeIn(minWidth = 150.dp, minHeight = 200.dp)
+                .background(color = Color.Gray)
+                .align(Alignment.BottomStart))
         }
 
-        if (savedBitmap.size == 1) {
-            shouldShow = true
-        }
 
-        LaunchedEffect(key1 = savedBitmap.size > 1) {
-            delay(1000)
-            if (savedBitmap.size == 2) {
-                shouldShow = false
-            }
-
-            delay(1000)
-            savedBitmap.clear()
+        if (shouldOpenSheet) {
+            ImageSheet(imgList = imageList)
         }
     }
 
+}
+
+
+fun fetchCacheFile(context: Context): List<File> {
+    var list = emptyList<File>()
+    context.cacheDir.listFiles()?.forEach {
+        if (it.isDirectory) {
+            list = it.listFiles()?.toList() ?: emptyList()
+        }
+    }
+    return list
 }
 
 
@@ -380,8 +373,14 @@ private class LightnessAnalyzer(
 
                                 // Get cache directory
                                 val cacheDir = ctx.cacheDir
-                                val file = File(cacheDir, "${System.currentTimeMillis()}.jpg")
+                                val tempFile = File(cacheDir, "ScannerML_Image")
 
+                                if (!tempFile.exists()) {
+                                    tempFile.mkdir()
+                                }
+
+                                val file =
+                                    File(tempFile.absolutePath, "${System.currentTimeMillis()}.jpg")
 
                                 val outputStream: FileOutputStream
 

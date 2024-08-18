@@ -41,7 +41,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.startActivity
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
+import coil.compose.AsyncImage
 import com.example.scannerml.MainActivity.Companion.REQUIRED_PERMISSIONS
 import com.example.scannerml.ui.OnLifecycleEvent
 import com.example.scannerml.ui.theme.ScannerMLTheme
@@ -57,12 +59,22 @@ class MainActivity : ComponentActivity() {
 
         System.loadLibrary("opencv_java4")
 
+        this.cacheDir?.listFiles()?.forEach {
+            if (it.isDirectory) {
+                it.listFiles()?.forEach { scannerImage ->
+                    Log.d(TAG, "onCreate: $scannerImage")
+                }
+            }
+        }
+
         setContent {
             ScannerMLTheme {
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+
                     RequestPermission(
                         context = this@MainActivity,
                         notGrantedPermission = {
@@ -75,6 +87,7 @@ class MainActivity : ComponentActivity() {
                         }) {
                         ScannerScreen()
                     }
+
                 }
             }
         }
@@ -192,7 +205,7 @@ fun RationalDialog(
                 TextButton(
                     onClick = positiveButton
                 ) {
-                    Text("OK", )
+                    Text("OK")
                 }
             },
             dismissButton = {
