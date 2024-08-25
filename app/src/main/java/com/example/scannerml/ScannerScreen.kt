@@ -234,9 +234,12 @@ fun ScannerContent(modifier: Modifier = Modifier) {
         }
 
 
-        if (shouldOpenSheet) {
-            ImageSheet(imgList = imageList)
-        }
+        ImageSheet(
+            imgList = imageList,
+            isSheetVisible = shouldOpenSheet,
+            hideSheet = { shouldOpenSheet = false }
+        )
+
     }
 
 }
